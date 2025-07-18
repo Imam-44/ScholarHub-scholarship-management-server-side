@@ -73,6 +73,32 @@ async function run() {
     app.get('/logout', async (req, res) => {
       res.send({ success: true });
     });
+    //  user route
+    app.post('/users', async (req, res) => {
+      try {
+        const user = req.body;
+        const existing = await usersCollection.findOne({ email: user.email });
+        if (existing) return res.send({ message: 'User already exists', inserted: false });
+
+        const newUser = { name: user.name, email: user.email, photoURL: user.photoURL, role: 'user', lastLogin: new Date() };
+        const result = await usersCollection.insertOne(newUser);
+        res.send({ success: true, inserted: true, result });
+      } catch (error) {
+        res.status(500).send({ message: 'Server error', error: error.message });
+      }
+    });
+
+    app.get('/users', verifyToken, async (req, res) => {
+      try {
+        const role = req.query.role;
+        const filter = role ? { role } : {};
+        const result = await usersCollection.find(filter).toArray();
+        res.send(result);
+      } catch (error) {
+        res.status(500).send({ message: 'Server error', error: error.message });
+      }
+    });
+
 
 
     // Server test route
