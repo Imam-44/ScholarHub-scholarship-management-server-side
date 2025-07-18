@@ -196,6 +196,27 @@ app.get('/search-scholarship', async (req, res) => {
   res.send(result);
 });
 
+app.post('/apply-scholarship', async (req, res) => {
+  const { userEmail, scholarshipId } = req.body;
+  const exists = await applicationCollection.findOne({
+    userEmail,
+    scholarshipId: new ObjectId(scholarshipId)
+  });
+  if (exists) return res.status(409).send({ message: 'Already applied' });
+  const result = await applicationCollection.insertOne(req.body);
+  res.send(result);
+});
+
+app.get('/apply-scholarship/check', async (req, res) => {
+  const { email, scholarshipId } = req.query;
+  if (!email || !scholarshipId) return res.status(400).send({ message: 'Missing query parameters' });
+  const exists = await applicationCollection.findOne({
+    userEmail: email,
+    scholarshipId: new ObjectId(scholarshipId)
+  });
+  res.send({ alreadyApplied: !!exists });
+});
+
 
 
 
