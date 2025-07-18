@@ -129,7 +129,17 @@ async function run() {
     res.status(500).send({ message: 'Server error', error: error.message });
   }
 });
- 
+   
+// Create scholarship 
+app.post('/new-scholarship', verifyToken, async (req, res) => {
+  try {
+    const result = await scholarshipCollection.insertOne(req.body);
+    res.send(result);
+  } catch (error) {
+    res.status(500).send({ message: 'Server error', error: error.message });
+  }
+});
+
 
 
 
