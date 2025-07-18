@@ -152,6 +152,32 @@ app.get('/scholarship/all', async (req, res) => {
   res.send(await scholarshipCollection.find().toArray());
 });
 
+app.get('/scholarship/:id', async (req, res) => {
+  try {
+    const scholarship = await scholarshipCollection.findOne({ _id: new ObjectId(req.params.id) });
+    if (!scholarship) return res.status(404).send({ message: 'Scholarship not found' });
+    res.send(scholarship);
+  } catch {
+    res.status(500).send({ message: 'Internal Server Error' });
+  }
+});
+
+app.patch('/scholarship/:id', verifyToken, async (req, res) => {
+  delete req.body._id;
+  const result = await scholarshipCollection.updateOne(
+    { _id: new ObjectId(req.params.id) },
+    { $set: req.body }
+  );
+  res.send(result);
+});
+
+app.delete('/scholarship/:id', verifyToken, async (req, res) => {
+  const result = await scholarshipCollection.deleteOne({ _id: new ObjectId(req.params.id) });
+  if (result.deletedCount === 0) return res.status(404).send({ message: 'Scholarship not found' });
+  res.send(result);
+});
+
+
 
 
 
