@@ -273,6 +273,20 @@ app.patch('/application-feedback/:id', verifyToken, async (req, res) => {
 });
 
 
+app.get('/applications/:id', verifyToken, async (req, res) => {
+  const app = await applicationCollection.findOne({ _id: new ObjectId(req.params.id) });
+  if (!app) return res.status(404).send({ error: 'Application not found' });
+  res.send(app);
+});
+
+app.patch('/applications/:id', verifyToken, async (req, res) => {
+  const result = await applicationCollection.updateOne(
+    { _id: new ObjectId(req.params.id) },
+    { $set: req.body }
+  );
+  res.send(result);
+});
+
 
 
 
