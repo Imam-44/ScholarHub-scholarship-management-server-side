@@ -140,6 +140,18 @@ app.post('/new-scholarship', verifyToken, async (req, res) => {
   }
 });
 
+app.get('/scholarship', async (req, res) => {
+  const page = parseInt(req.query.page) || 1;
+  const limit = parseInt(req.query.limit) || 6;
+  const total = await scholarshipCollection.estimatedDocumentCount();
+  const scholarships = await scholarshipCollection.find().skip((page-1)*limit).limit(limit).toArray();
+  res.send({ total, page, totalPages: Math.ceil(total/limit), scholarships });
+});
+
+app.get('/scholarship/all', async (req, res) => {
+  res.send(await scholarshipCollection.find().toArray());
+});
+
 
 
 
