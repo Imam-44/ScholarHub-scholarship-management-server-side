@@ -99,6 +99,28 @@ async function run() {
       }
     });
 
+    app.get('/users/role/:email', async (req, res) => {
+      try {
+        const user = await usersCollection.findOne({ email: req.params.email });
+        res.send({ role: user?.role || 'user' });
+      } catch (error) {
+        res.status(500).send({ message: 'Server error', error: error.message });
+      }
+    });
+
+    app.patch('/users/:id', verifyToken, async (req, res) => {
+      try {
+        const result = await usersCollection.updateOne(
+          { _id: new ObjectId(req.params.id) },
+          { $set: req.body }
+        );
+        res.send(result);
+      } catch (error) {
+        res.status(500).send({ message: 'Server error', error: error.message });
+      }
+    });
+
+
 
 
     // Server test route
