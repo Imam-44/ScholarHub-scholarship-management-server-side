@@ -177,6 +177,26 @@ app.delete('/scholarship/:id', verifyToken, async (req, res) => {
   res.send(result);
 });
 
+app.get('/top-scholarship', async (req, res) => {
+  const top = await scholarshipCollection
+    .find().sort({ applicationFees: 1, postDate: -1 }).limit(6).toArray();
+  res.send(top);
+});
+
+app.get('/search-scholarship', async (req, res) => {
+  const q = req.query.query;
+  if (!q) return res.status(400).send({ message: 'Query parameter is required' });
+  const result = await scholarshipCollection.find({
+    $or: [
+      { scholarshipName: { $regex: q, $options: 'i' } },
+      { universityName: { $regex: q, $options: 'i' } },
+      { degree: { $regex: q, $options: 'i' } }
+    ]
+  }).toArray();
+  res.send(result);
+});
+
+
 
 
 
