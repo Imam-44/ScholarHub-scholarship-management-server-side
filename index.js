@@ -217,6 +217,31 @@ app.get('/apply-scholarship/check', async (req, res) => {
   res.send({ alreadyApplied: !!exists });
 });
 
+app.get('/my-applications/:email', verifyToken, async (req, res) => {
+  if (req.params.email !== req.user.email) return res.status(403).send({ message: 'Forbidden access' });
+  res.send(await applicationCollection.find({ userEmail: req.params.email }).toArray());
+});
+
+app.patch('/update-application/:id', verifyToken, async (req, res) => {
+  const app = await applicationCollection.findOne({ _id: new ObjectId(req.params.id) });
+  if (!app) return res.status(404).send({ message: 'Application not found' });
+  if (app.status !== 'pending' || app.userEmail !== req.user.email)
+    return res.status(403).send({ message: 'Not allowed' });
+  const allowed = (({ address, degree, phone, photo, gender, ssc, hsc, studyGap }) => ({ address, degree, phone, photo, gender, ssc, hsc, studyGap }))(req.body);
+  const result = await applicationCollection.updateOne({ _id: new ObjectId(req.params.id) }, { $set: allowed });
+  res.send(result);
+});
+
+app.delete('/cancel-application/:id', verifyToken, async (req, res) => {
+  const result = await applicationCollection.deleteOne({
+    _id: new ObjectId(req.params.id),
+    userEmail: req.user.email
+  });
+  if (result.deletedCount === 0) return res.status(404).send({ message: 'Application not found or unauthorized' });
+  res.send(result);
+});
+
+
 
 
 
