@@ -119,7 +119,17 @@ async function run() {
         res.status(500).send({ message: 'Server error', error: error.message });
       }
     });
-
+     
+    app.delete('/users/:id', verifyToken, async (req, res) => {
+  try {
+    const result = await usersCollection.deleteOne({ _id: new ObjectId(req.params.id) });
+    if (result.deletedCount === 0) return res.status(404).send({ message: 'User not found' });
+    res.send(result);
+  } catch (error) {
+    res.status(500).send({ message: 'Server error', error: error.message });
+  }
+});
+ 
 
 
 
