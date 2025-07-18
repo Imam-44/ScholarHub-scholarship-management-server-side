@@ -287,6 +287,64 @@ app.patch('/applications/:id', verifyToken, async (req, res) => {
   res.send(result);
 });
 
+app.post('/reviews', verifyToken, async (req, res) => {
+  const review = { ...req.body, reviewerEmail: req.user.email, date: new Date(), scholarshipId: req.body.scholarshipId || req.body.scholarshipIdFromClient };
+  const result = await reviewCollection.insertOne(review);
+  res.send(result);
+});
+
+app.get('/reviews', async (req, res) => {
+  const query = req.query.scholarshipId ? { scholarshipId: req.query.scholarshipId } : {};
+  res.send(await reviewCollection.find(query).toArray());
+});
+app.get('/reviews/:scholarshipId', async (req, res) => {
+  res.send(await reviewCollection.find({ scholarshipId: req.params.scholarshipId }).toArray());
+});
+app.get('/my-reviews/:email', verifyToken, async (req, res) => {
+  if (req.params.email !== req.user.email) return res.status(403).send({ message: 'Unauthorized access' });
+  res.send(await reviewCollection.find({ reviewerEmail: req.params.email }).toArray());
+});
+app.patch('/reviews/:id', verifyToken, async (req, res) => {
+  const result = await reviewCollection.updateOne(
+    { _id: new ObjectId(req.params.id), reviewerEmail: req.user.email },
+    { $set: req.body }
+  );
+  if (result.matchedCount === 0) return res.status(404).send({ message: 'Review not found or unauthorized' });
+  res.send(result);
+});
+app.delete('/reviews/:id', verifyToken, async (req, res) => {
+  const result = await reviewCollection.deleteOne({ _id: new ObjectId(req.params.id), reviewerEmail: req.user.email });
+  if (result.deletedCount === 0) return res.status(404).send({ message: 'Review not found or unauthorized' });
+  res.send(result);
+});
+app.delete('/reviews/admin/:id', verifyToken, async (req, res) => {
+  const result = await reviewCollection.deleteOne({ _id: new ObjectId(req.params.id) });
+  if (result.deletedCount === 0) return res.status(404).send({ message: 'Review not found' });
+  res.send(result);
+});
+
+const Stripe = require('stripe');
+const stripe = Stripe(process.env.STRIPE_SECRET_KEY);
+
+app.post('/create-payment-intent', async (req, res) => {
+  const paymentIntent = await stripe.paymentIntents.create({ amount: parseInt(req.body.amount*100), currency: 'usd', payment_method_types: ['card'] });
+  res.send({ clientSecret: paymentIntent.client_secret });
+});
+app.post('/payment-success', verifyToken, async (req, res) => {
+  const info = { ...req.body, userEmail: req.user.email };
+  const result = await paymentCollection.insertOne(info);
+  res.send({ success: true, result });
+});
+
+app.get('/analytics', verifyToken, verifyAdmin, async (req, res) => {
+  const scholarshipByCategory = await scholarshipCollection.aggregate([{ $group: { _id: '$scholarshipCategory', count: { $sum: 1 } } }]).toArray();
+  const applicationByStatus = await applicationCollection.aggregate([{ $group: { _id: '$status', count: { $sum: 1 } } }]).toArray();
+  const applicationByDate = await applicationCollection.aggregate([
+    { $group: { _id: { $dateToString: { format: '%Y-%m-%d', date: '$applicationDate' } }, count: { $sum: 1 } } },
+    { $sort: { _id: 1 } }
+  ]).toArray();
+  res.send({ scholarshipByCategory, applicationByStatus, applicationByDate });
+});
 
 
 
