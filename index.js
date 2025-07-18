@@ -242,6 +242,35 @@ app.delete('/cancel-application/:id', verifyToken, async (req, res) => {
 });
 
 
+app.get('/all-applications', verifyToken, async (req, res) => {
+  const page = parseInt(req.query.page) || 1;
+  const limit = parseInt(req.query.limit) || 10;
+  const skip = (page - 1) * limit;
+  const sortBy = req.query.sortBy || 'applicationDate';
+  const order = req.query.sortOrder === 'desc' ? -1 : 1;
+  const filter = req.query.deadline ? { applicationDeadline: { $gte: new Date(req.query.deadline) } } : {};
+  const apps = await applicationCollection.find(filter).sort({ [sortBy]: order }).skip(skip).limit(limit).toArray();
+  const total = await applicationCollection.countDocuments(filter);
+  res.send({ applications: apps, total, page, limit });
+});
+
+app.patch('/application-status/:id', verifyToken, async (req, res) => {
+  const result = await applicationCollection.updateOne(
+    { _id: new ObjectId(req.params.id) },
+    { $set: { status: req.body.status } }
+  );
+  if (result.matchedCount === 0) return res.status(404).send({ message: 'Application not found' });
+  res.send(result);
+});
+
+app.patch('/application-feedback/:id', verifyToken, async (req, res) => {
+  const result = await applicationCollection.updateOne(
+    { _id: new ObjectId(req.params.id) },
+    { $set: { feedback: req.body.feedback } }
+  );
+  if (result.matchedCount === 0) return res.status(404).send({ message: 'Application not found' });
+  res.send(result);
+});
 
 
 
