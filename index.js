@@ -9,7 +9,12 @@ const Stripe = require('stripe');
 const stripe = Stripe(process.env.STRIPE_SECRET_KEY);
 
 const corsOptions = {
-  origin: ['http://localhost:5173', 'http://localhost:5174', process.env.CLIENT_URL],
+  origin: [
+    'http://localhost:5173',
+    'http://localhost:5174',
+    'https://assignment-12-final-7187e.web.app',
+    'https://assignment-12-final-7187e.firebaseapp.com',
+  ],
   credentials: true,
   optionSuccessStatus: 200,
 };
@@ -188,7 +193,7 @@ async function run() {
     // Full list version for admin panel
     app.get('/scholarship/all', async (req, res) => {
       const scholarships = await scholarshipCollection.find().toArray();
-      res.send(scholarships); 
+      res.send(scholarships);
     });
 
 
@@ -239,7 +244,7 @@ async function run() {
 
         res.send(result);
       } catch (error) {
-        console.error('Update failed:', error);
+
         res.status(500).send({ message: 'Update failed', error: error.message });
       }
     });
@@ -279,7 +284,7 @@ async function run() {
       }
     });
 
- 
+
     app.post("/apply-scholarship", async (req, res) => {
       try {
         const application = req.body;
@@ -296,29 +301,28 @@ async function run() {
         const result = await applicationCollection.insertOne(application);
         res.send(result);
       } catch (err) {
-        console.error(err);
+
         res.status(500).send({ message: "Server error" });
       }
     });
     // Check if user already applied
     app.get("/apply-scholarship/check", async (req, res) => {
-      try {
-        const { email, scholarshipId } = req.query;
-        if (!email || !scholarshipId) {
-          return res.status(400).send({ message: "Missing query parameters" });
-        }
+      const { email, scholarshipId } = req.query;
 
-        const existing = await applicationCollection.findOne({
-          userEmail: email,
-          scholarshipId: new ObjectId(scholarshipId),
-        });
+      console.log("Checking apply for:", email, scholarshipId); // 👈 eta dao
 
-        res.send({ alreadyApplied: !!existing });
-      } catch (err) {
-        console.error(err);
-        res.status(500).send({ message: "Server error" });
-      }
+      const existing = await applicationCollection.findOne({
+        userEmail: email,
+        scholarshipId: scholarshipId, // dikkat ekhanei hote pare
+      });
+
+      console.log("Existing application:", existing); // 👈 eta dao
+
+      res.send({ alreadyApplied: !!existing });
     });
+
+
+
 
 
 
@@ -372,7 +376,7 @@ async function run() {
 
         res.send(result);
       } catch (error) {
-        console.error('Update Error:', error.message);
+
         res.status(500).send({ message: 'Server error', error: error.message });
       }
     });
@@ -394,28 +398,34 @@ async function run() {
       }
     });
 
-    app.get('/all-applications', verifyToken, async (req, res) => {
-      try {
-        const page = parseInt(req.query.page) || 1;
-        const limit = parseInt(req.query.limit) || 10;
-        const skip = (page - 1) * limit;
-        const sortBy = req.query.sortBy || 'applicationDate';
-        const sortOrder = req.query.sortOrder === 'desc' ? -1 : 1;
-        const filter = req.query.deadline
-          ? { applicationDeadline: { $gte: new Date(req.query.deadline) } }
-          : {};
-        const result = await applicationCollection
-          .find(filter)
-          .sort({ [sortBy]: sortOrder })
-          .skip(skip)
-          .limit(limit)
-          .toArray();
-        const total = await applicationCollection.countDocuments(filter);
-        res.send({ applications: result, total, page, limit });
-      } catch (error) {
-        res.status(500).send({ message: 'Server error', error: error.message });
-      }
-    });
+app.get('/all-applications', verifyToken, async (req, res) => {
+  try {
+    const page = parseInt(req.query.page);
+    const limit = parseInt(req.query.limit);
+    const sortBy = req.query.sortBy || 'applicationDate';
+    const sortOrder = req.query.sortOrder === 'desc' ? -1 : 1;
+    const filter = req.query.deadline
+      ? { applicationDeadline: { $gte: new Date(req.query.deadline) } }
+      : {};
+
+    const cursor = applicationCollection.find(filter).sort({ [sortBy]: sortOrder });
+
+    // যদি `limit` আসে তাহলে pagination করো
+    let result;
+    if (!isNaN(limit) && limit > 0 && !isNaN(page) && page > 0) {
+      const skip = (page - 1) * limit;
+      result = await cursor.skip(skip).limit(limit).toArray();
+    } else {
+      result = await cursor.toArray(); // সব ডাটা পাঠাও
+    }
+
+    const total = await applicationCollection.countDocuments(filter);
+    res.send({ applications: result, total, page: page || 1, limit: limit || total });
+  } catch (error) {
+    res.status(500).send({ message: 'Server error', error: error.message });
+  }
+});
+
 
     app.patch('/application-status/:id', verifyToken, async (req, res) => {
       try {
@@ -464,7 +474,7 @@ async function run() {
 
         res.send(application);
       } catch (error) {
-        console.error('Error fetching application:', error);
+
         res.status(500).send({ error: 'Internal Server Error' });
       }
     });
@@ -481,7 +491,7 @@ async function run() {
         );
         res.send(result);
       } catch (err) {
-        console.error('Update failed:', err);
+
         res.status(500).send({ error: 'Update failed' });
       }
     });
@@ -491,12 +501,12 @@ async function run() {
     // Review Routes
     app.post('/reviews', verifyToken, async (req, res) => {
       try {
-        console.log('Review data received:', req.body);
+
         const reviewData = req.body;
         reviewData.reviewerEmail = req.user.email;
         reviewData.date = new Date();
 
-      
+
         reviewData.scholarshipId = reviewData.scholarshipId || reviewData.scholarshipIdFromClient;
 
         const result = await reviewCollection.insertOne(reviewData);
@@ -518,7 +528,7 @@ async function run() {
         const reviews = await reviewCollection.find(query).toArray();
         res.send(reviews);
       } catch (error) {
-        console.error('Failed to fetch reviews:', error);
+
         res.status(500).send({ error: 'Failed to get reviews' });
       }
     });
@@ -540,7 +550,7 @@ async function run() {
       try {
         const email = req.params.email;
 
-       
+
         if (req.user.email !== email) {
           return res.status(403).send({ message: 'Unauthorized access' });
         }
@@ -568,7 +578,7 @@ async function run() {
 
         res.send(result);
       } catch (error) {
-        console.error('Review update error:', error);
+
         res.status(500).send({ message: 'Server error', error: error.message });
       }
     });
@@ -602,6 +612,20 @@ async function run() {
       }
     });
 
+    //rating routes 
+    // Example Express route
+    app.get('/reviews/average/:id', async (req, res) => {
+      const id = req.params.id;
+
+      const reviews = await reviewCollection.find({ scholarshipId: id }).toArray();
+
+      const totalRating = reviews.reduce((sum, r) => sum + Number(r.rating), 0);
+      const average = totalRating / reviews.length || 0;
+
+      res.send({ average });
+    });
+
+
     // Payment Routes
     app.post('/create-payment-intent', async (req, res) => {
       const { amount } = req.body;
@@ -626,7 +650,7 @@ async function run() {
     });
 
     // Analytics Route
-    app.get('/analytics', verifyToken,  async (req, res) => {
+    app.get('/analytics', verifyToken, async (req, res) => {
       try {
         const scholarshipByCategory = await scholarshipCollection
           .aggregate([
@@ -655,20 +679,23 @@ async function run() {
       }
     });
 
-    // Server test route
-    app.get('/', (req, res) => {
-      res.send('Scholarship Management System Server is running!');
-    });
-
-    await client.db('admin').command({ ping: 1 });
-    console.log('Pinged your deployment. You successfully connected to MongoDB!');
+    // await client.db('admin').command({ ping: 1 });
+    // console.log('Pinged your deployment. You successfully connected to MongoDB!');
   } catch (error) {
-    console.error('Failed to connect to MongoDB:', error);
+    // console.error('Failed to connect to MongoDB:', error);
   }
 }
-
 run().catch(console.dir);
+
+// Server test route
+app.get('/', (req, res) => {
+  res.send('Scholarship Management System Server is running!');
+});
+
 
 app.listen(port, () => {
   console.log(`Server running at http://localhost:${port}`);
 });
+
+
+
