@@ -410,13 +410,13 @@ app.get('/all-applications', verifyToken, async (req, res) => {
 
     const cursor = applicationCollection.find(filter).sort({ [sortBy]: sortOrder });
 
-    // যদি `limit` আসে তাহলে pagination করো
+   
     let result;
     if (!isNaN(limit) && limit > 0 && !isNaN(page) && page > 0) {
       const skip = (page - 1) * limit;
       result = await cursor.skip(skip).limit(limit).toArray();
     } else {
-      result = await cursor.toArray(); // সব ডাটা পাঠাও
+      result = await cursor.toArray(); 
     }
 
     const total = await applicationCollection.countDocuments(filter);
@@ -693,9 +693,10 @@ app.get('/', (req, res) => {
 });
 
 
-app.listen(port, () => {
-  console.log(`Server running at http://localhost:${port}`);
-});
+// app.listen(port, () => {
+//   console.log(`Server running at http://localhost:${port}`);
+// });
 
 
+module.exports = app;
 
