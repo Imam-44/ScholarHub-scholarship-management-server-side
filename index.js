@@ -8,17 +8,17 @@ const jwt = require('jsonwebtoken');
 const Stripe = require('stripe');
 const stripe = Stripe(process.env.STRIPE_SECRET_KEY);
 
-const corsOptions = {
-  origin: [
-    'http://localhost:5173',
-    'http://localhost:5174',
-    'https://assignment-12-final-7187e.web.app',
-    'https://assignment-12-final-7187e.firebaseapp.com',
-  ],
-  credentials: true,
-  optionSuccessStatus: 200,
-};
-app.use(cors(corsOptions));
+// const corsOptions = {
+//   origin: [
+    
+//     'https://assignment-12-scholarhub.web.app',
+//     'https://assignment-12-scholarhub.firebaseapp.com',
+//   ],
+//   credentials: true,
+//   optionSuccessStatus: 200,
+// };
+// corsOptions
+app.use(cors());
 app.use(express.json());
 
 // Middleware to verify JWT
@@ -171,6 +171,7 @@ async function run() {
 
     // Paginated version for public listing
     app.get('/scholarship', async (req, res) => {
+  
       const page = parseInt(req.query.page) || 1;
       const limit = parseInt(req.query.limit) || 6;
       const skip = (page - 1) * limit;
@@ -309,14 +310,14 @@ async function run() {
     app.get("/apply-scholarship/check", async (req, res) => {
       const { email, scholarshipId } = req.query;
 
-      console.log("Checking apply for:", email, scholarshipId); // 👈 eta dao
+      
 
       const existing = await applicationCollection.findOne({
         userEmail: email,
         scholarshipId: scholarshipId, // dikkat ekhanei hote pare
       });
 
-      console.log("Existing application:", existing); // 👈 eta dao
+ 
 
       res.send({ alreadyApplied: !!existing });
     });
@@ -682,7 +683,7 @@ app.get('/all-applications', verifyToken, async (req, res) => {
     // await client.db('admin').command({ ping: 1 });
     // console.log('Pinged your deployment. You successfully connected to MongoDB!');
   } catch (error) {
-    // console.error('Failed to connect to MongoDB:', error);
+    
   }
 }
 run().catch(console.dir);
@@ -693,10 +694,10 @@ app.get('/', (req, res) => {
 });
 
 
-// app.listen(port, () => {
-//   console.log(`Server running at http://localhost:${port}`);
-// });
+app.listen(port, () => {
+  console.log(`Server running at http://localhost:${port}`);
+});
 
 
-module.exports = app;
+
 
