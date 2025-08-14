@@ -10,14 +10,24 @@ const port = process.env.PORT || 5000;
 const stripe = Stripe(process.env.STRIPE_SECRET_KEY);
 
 // CORS Setup
-const corsOptions = {
-  origin: [
+const allowedOrigins =
+  [
     'https://assignment-12-scholarhub.web.app',
     'https://assignment-12-scholarhub.firebaseapp.com',
-  ],
- 
-};
-app.use(cors(corsOptions));
+    'https://scholarhub-scholarship-project.vercel.app', // ✅ Vercel Frontend URL যোগ করুন
+    'http://localhost:5173' // ✅ Local React Dev Server
+  ];
+
+
+app.use(cors({
+  origin: function (origin, callback) {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  }
+}));
 app.use(express.json());
 
 // JWT Middleware
@@ -47,6 +57,7 @@ const client = new MongoClient(process.env.MONGODB_URI, {
 // Main async function
 async function run() {
   try {
+    await client.connect();
     const db = client.db('assignment-12-scholarshipDB');
     const usersCollection = db.collection('users');
     const scholarshipCollection = db.collection('scholarship');
@@ -59,16 +70,38 @@ async function run() {
     await applicationCollection.createIndex({ userEmail: 1, scholarshipId: 1 });
     await reviewCollection.createIndex({ scholarshipId: 1, reviewerEmail: 1 });
 
-    // -------------------------------
-    // JWT ROUTES
-    // -------------------------------
+    // =====================
+    // JWT ROUTES (Updated)
+    // =====================
+
+    // Generate access + refresh token
     app.post('/jwt', async (req, res) => {
       try {
-        const email = req.body;
-        const token = jwt.sign(email, process.env.ACCESS_TOKEN_SECRET, { expiresIn: '365d' });
-        res.send({ token });
+        const { email } = req.body;
+        if (!email) return res.status(400).send({ message: 'Email required' });
+
+        const accessToken = jwt.sign({ email }, process.env.ACCESS_TOKEN_SECRET, { expiresIn: '15m' });
+        const refreshToken = jwt.sign({ email }, process.env.REFRESH_TOKEN_SECRET, { expiresIn: '7d' });
+
+        res.send({ accessToken, refreshToken });
       } catch (error) {
         res.status(500).send({ message: 'Server error', error: error.message });
+      }
+    });
+
+    // Refresh token route
+    app.post('/refresh-token', async (req, res) => {
+      const { refreshToken } = req.body;
+      if (!refreshToken) return res.status(401).send({ message: 'No refresh token provided' });
+
+      try {
+        const decoded = jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET);
+        const email = decoded.email;
+
+        const newAccessToken = jwt.sign({ email }, process.env.ACCESS_TOKEN_SECRET, { expiresIn: '15m' });
+        res.send({ accessToken: newAccessToken });
+      } catch (err) {
+        res.status(403).send({ message: 'Invalid refresh token' });
       }
     });
 
