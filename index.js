@@ -10,26 +10,20 @@ const port = process.env.PORT || 5000;
 const stripe = Stripe(process.env.STRIPE_SECRET_KEY);
 
 const allowedOrigins = [
-  'https://assignment-12-scholarhub.web.app',
-  'https://assignment-12-scholarhub.firebaseapp.com',
-  'http://localhost:5173'
+ process.env.VITE_FRONTEND_URL,
+  'http://localhost:5173' 
 ];
 
 app.use(cors({
-  origin: function (origin, callback) {
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
-
-    if (allowedOrigins.indexOf(origin) === -1) {
-      const msg = 'The CORS policy for this site does not allow access from the specified Origin.';
-      return callback(new Error(msg), false);
+  origin: function(origin, callback) {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
     }
-    return callback(null, true);
-  },
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-  credentials: true
+  }
 }));
+
 app.use(express.json());
 
 // JWT Middleware
@@ -230,25 +224,21 @@ async function run() {
       res.send(result);
     });
 
+
+    // API রাউটে ক্রেডেনশিয়ালস সেট করুন
     app.get('/top-scholarship', async (req, res) => {
       try {
-        // CORS হেডার সেট করুন
-        res.setHeader('Access-Control-Allow-Origin', 'https://assignment-12-scholarhub.web.app');
-        res.setHeader('Access-Control-Allow-Methods', 'GET');
-
-        const result = await scholarshipCollection
-          .find()
+       const result = await scholarshipCollection.find()
           .sort({ applicationFees: 1, postDate: -1 })
           .limit(6)
           .toArray();
 
         res.json(result);
       } catch (error) {
-        console.error('Error fetching top scholarships:', error);
+        console.error('Error:', error);
         res.status(500).json({ error: 'Internal server error' });
       }
     });
-
     app.get('/search-scholarship', async (req, res) => {
       const query = req.query.query;
       if (!query) return res.status(400).send({ message: 'Query parameter is required' });
