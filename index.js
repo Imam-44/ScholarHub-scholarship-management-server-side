@@ -9,24 +9,26 @@ const app = express();
 const port = process.env.PORT || 5000;
 const stripe = Stripe(process.env.STRIPE_SECRET_KEY);
 
-// CORS Setup
-const allowedOrigins =
-  [
-    'https://assignment-12-scholarhub.web.app',
-    'https://assignment-12-scholarhub.firebaseapp.com',
-    'https://scholarhub-scholarship-project.vercel.app', // ✅ Vercel Frontend URL যোগ করুন
-    'http://localhost:5173' // ✅ Local React Dev Server
-  ];
-
+const allowedOrigins = [
+  'https://assignment-12-scholarhub.web.app',
+  'https://assignment-12-scholarhub.firebaseapp.com',
+  'http://localhost:5173'
+];
 
 app.use(cors({
   origin: function (origin, callback) {
-    if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+
+    if (allowedOrigins.indexOf(origin) === -1) {
+      const msg = 'The CORS policy for this site does not allow access from the specified Origin.';
+      return callback(new Error(msg), false);
     }
-  }
+    return callback(null, true);
+  },
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true
 }));
 app.use(express.json());
 
@@ -69,6 +71,16 @@ async function run() {
     await scholarshipCollection.createIndex({ scholarshipName: 1, universityName: 1, degree: 1 });
     await applicationCollection.createIndex({ userEmail: 1, scholarshipId: 1 });
     await reviewCollection.createIndex({ scholarshipId: 1, reviewerEmail: 1 });
+
+    // ২. এরপর ডাটাবেজ চেক রুট অ্যাড করুন
+    app.get('/db-check', async (req, res) => {
+      try {
+        await client.db().admin().ping();
+        res.send('MongoDB connected successfully to: ' + process.env.MONGODB_URI);
+      } catch (err) {
+        res.status(500).send('MongoDB connection failed: ' + err.message);
+      }
+    });
 
     // =====================
     // JWT ROUTES (Updated)
@@ -170,16 +182,25 @@ async function run() {
       const result = await scholarshipCollection.insertOne(req.body);
       res.send(result);
     });
-
     app.get('/scholarship', async (req, res) => {
-      const page = parseInt(req.query.page) || 1;
-      const limit = parseInt(req.query.limit) || 6;
-      const skip = (page - 1) * limit;
+      try {
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 6;
+        const skip = (page - 1) * limit;
 
-      const total = await scholarshipCollection.estimatedDocumentCount();
-      const scholarships = await scholarshipCollection.find().skip(skip).limit(limit).toArray();
+        const total = await scholarshipCollection.estimatedDocumentCount();
+        const scholarships = await scholarshipCollection.find()
+          .skip(skip)
+          .limit(limit)
+          .toArray();
 
-      res.send({ total, page, totalPages: Math.ceil(total / limit), scholarships });
+        // CORS হেডার ম্যানুয়ালি সেট করুন
+        res.setHeader('Access-Control-Allow-Origin', 'https://assignment-12-scholarhub.web.app');
+        res.json({ total, page, totalPages: Math.ceil(total / limit), scholarships });
+      } catch (error) {
+        console.error('Error fetching scholarships:', error);
+        res.status(500).json({ error: 'Internal server error', details: error.message });
+      }
     });
 
     app.get('/scholarship/all', async (req, res) => {
@@ -210,12 +231,22 @@ async function run() {
     });
 
     app.get('/top-scholarship', async (req, res) => {
-      const result = await scholarshipCollection
-        .find()
-        .sort({ applicationFees: 1, postDate: -1 })
-        .limit(6)
-        .toArray();
-      res.send(result);
+      try {
+        // CORS হেডার সেট করুন
+        res.setHeader('Access-Control-Allow-Origin', 'https://assignment-12-scholarhub.web.app');
+        res.setHeader('Access-Control-Allow-Methods', 'GET');
+
+        const result = await scholarshipCollection
+          .find()
+          .sort({ applicationFees: 1, postDate: -1 })
+          .limit(6)
+          .toArray();
+
+        res.json(result);
+      } catch (error) {
+        console.error('Error fetching top scholarships:', error);
+        res.status(500).json({ error: 'Internal server error' });
+      }
     });
 
     app.get('/search-scholarship', async (req, res) => {
@@ -390,11 +421,17 @@ async function run() {
     });
 
     app.get('/reviews/average/:id', async (req, res) => {
-      const reviews = await reviewCollection.find({ scholarshipId: req.params.id }).toArray();
-      const average = reviews.reduce((sum, r) => sum + Number(r.rating), 0) / (reviews.length || 1);
-      res.send({ average });
+      console.log('Fetching reviews for scholarship:', req.params.id);
+      try {
+        const reviews = await reviewCollection.find({ scholarshipId: req.params.id }).toArray();
+        console.log('Found reviews:', reviews.length);
+        const average = reviews.reduce((sum, r) => sum + Number(r.rating), 0) / (reviews.length || 1);
+        res.send({ average });
+      } catch (error) {
+        console.error('Error fetching reviews:', error);
+        res.status(500).send({ error: error.message });
+      }
     });
-
     // -------------------------------
     // PAYMENT ROUTES
     // -------------------------------
