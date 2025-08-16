@@ -9,23 +9,15 @@ const app = express();
 const port = process.env.PORT || 5000;
 const stripe = Stripe(process.env.STRIPE_SECRET_KEY);
 
-const allowedOrigins = [
-  'https://assignment-12-scholarhub.web.app', // আগের
-  'http://localhost:5173' // dev
-];
-
-app.use(cors({
-  origin: function(origin, callback) {
-    if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
-  credentials: true // <-- add this line
-}));
-
-
+// CORS Setup
+const corsOptions = {
+  origin: [
+    'https://assignment-12-scholarhub.web.app',
+    'https://assignment-12-scholarhub.firebaseapp.com',
+  ],
+ 
+};
+app.use(cors(corsOptions));
 app.use(express.json());
 
 // JWT Middleware
@@ -55,7 +47,6 @@ const client = new MongoClient(process.env.MONGODB_URI, {
 // Main async function
 async function run() {
   try {
-    await client.connect();
     const db = client.db('assignment-12-scholarshipDB');
     const usersCollection = db.collection('users');
     const scholarshipCollection = db.collection('scholarship');
@@ -63,40 +54,21 @@ async function run() {
     const reviewCollection = db.collection('reviews');
     const paymentCollection = db.collection('payment');
 
+    // Indexes for performance
+    await scholarshipCollection.createIndex({ scholarshipName: 1, universityName: 1, degree: 1 });
+    await applicationCollection.createIndex({ userEmail: 1, scholarshipId: 1 });
+    await reviewCollection.createIndex({ scholarshipId: 1, reviewerEmail: 1 });
 
-
-    // =====================
-    // JWT ROUTES (Updated)
-    // =====================
-
-    // Generate access + refresh token
+    // -------------------------------
+    // JWT ROUTES
+    // -------------------------------
     app.post('/jwt', async (req, res) => {
       try {
-        const { email } = req.body;
-        if (!email) return res.status(400).send({ message: 'Email required' });
-
-        const accessToken = jwt.sign({ email }, process.env.ACCESS_TOKEN_SECRET, { expiresIn: '15m' });
-        const refreshToken = jwt.sign({ email }, process.env.REFRESH_TOKEN_SECRET, { expiresIn: '7d' });
-
-        res.send({ accessToken, refreshToken });
+        const email = req.body;
+        const token = jwt.sign(email, process.env.ACCESS_TOKEN_SECRET, { expiresIn: '365d' });
+        res.send({ token });
       } catch (error) {
         res.status(500).send({ message: 'Server error', error: error.message });
-      }
-    });
-
-    // Refresh token route
-    app.post('/refresh-token', async (req, res) => {
-      const { refreshToken } = req.body;
-      if (!refreshToken) return res.status(401).send({ message: 'No refresh token provided' });
-
-      try {
-        const decoded = jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET);
-        const email = decoded.email;
-
-        const newAccessToken = jwt.sign({ email }, process.env.ACCESS_TOKEN_SECRET, { expiresIn: '15m' });
-        res.send({ accessToken: newAccessToken });
-      } catch (err) {
-        res.status(403).send({ message: 'Invalid refresh token' });
       }
     });
 
@@ -165,22 +137,16 @@ async function run() {
       const result = await scholarshipCollection.insertOne(req.body);
       res.send(result);
     });
-    app.get('/scholarship', async (req, res) => {
-      try {
-        const page = parseInt(req.query.page) || 1;
-        const limit = parseInt(req.query.limit) || 6;
-        const skip = (page - 1) * limit;
 
-        const total = await scholarshipCollection.estimatedDocumentCount();
-        const scholarships = await scholarshipCollection.find()
-          .skip(skip)
-          .limit(limit)
-          .toArray();
-        res.json({ total, page, totalPages: Math.ceil(total / limit), scholarships });
-      } catch (error) {
-        console.error('Error fetching scholarships:', error);
-        res.status(500).json({ error: 'Internal server error', details: error.message });
-      }
+    app.get('/scholarship', async (req, res) => {
+      const page = parseInt(req.query.page) || 1;
+      const limit = parseInt(req.query.limit) || 6;
+      const skip = (page - 1) * limit;
+
+      const total = await scholarshipCollection.estimatedDocumentCount();
+      const scholarships = await scholarshipCollection.find().skip(skip).limit(limit).toArray();
+
+      res.send({ total, page, totalPages: Math.ceil(total / limit), scholarships });
     });
 
     app.get('/scholarship/all', async (req, res) => {
@@ -210,21 +176,15 @@ async function run() {
       res.send(result);
     });
 
-
-    // API রাউটে ক্রেডেনশিয়ালস সেট করুন
     app.get('/top-scholarship', async (req, res) => {
-      try {
-       const result = await scholarshipCollection.find()
-          .sort({ applicationFees: 1, postDate: -1 })
-          .limit(6)
-          .toArray();
-
-        res.json(result);
-      } catch (error) {
-        console.error('Error:', error);
-        res.status(500).json({ error: 'Internal server error' });
-      }
+      const result = await scholarshipCollection
+        .find()
+        .sort({ applicationFees: 1, postDate: -1 })
+        .limit(6)
+        .toArray();
+      res.send(result);
     });
+
     app.get('/search-scholarship', async (req, res) => {
       const query = req.query.query;
       if (!query) return res.status(400).send({ message: 'Query parameter is required' });
@@ -397,17 +357,11 @@ async function run() {
     });
 
     app.get('/reviews/average/:id', async (req, res) => {
-      console.log('Fetching reviews for scholarship:', req.params.id);
-      try {
-        const reviews = await reviewCollection.find({ scholarshipId: req.params.id }).toArray();
-        console.log('Found reviews:', reviews.length);
-        const average = reviews.reduce((sum, r) => sum + Number(r.rating), 0) / (reviews.length || 1);
-        res.send({ average });
-      } catch (error) {
-        console.error('Error fetching reviews:', error);
-        res.status(500).send({ error: error.message });
-      }
+      const reviews = await reviewCollection.find({ scholarshipId: req.params.id }).toArray();
+      const average = reviews.reduce((sum, r) => sum + Number(r.rating), 0) / (reviews.length || 1);
+      res.send({ average });
     });
+
     // -------------------------------
     // PAYMENT ROUTES
     // -------------------------------
