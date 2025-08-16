@@ -10,8 +10,8 @@ const port = process.env.PORT || 5000;
 const stripe = Stripe(process.env.STRIPE_SECRET_KEY);
 
 const allowedOrigins = [
- process.env.VITE_FRONTEND_URL,
-  'http://localhost:5173' 
+  'https://assignment-12-scholarhub.web.app', // আগের
+  'http://localhost:5173' // dev
 ];
 
 app.use(cors({
@@ -21,8 +21,10 @@ app.use(cors({
     } else {
       callback(new Error('Not allowed by CORS'));
     }
-  }
+  },
+  credentials: true // <-- add this line
 }));
+
 
 app.use(express.json());
 
@@ -61,20 +63,7 @@ async function run() {
     const reviewCollection = db.collection('reviews');
     const paymentCollection = db.collection('payment');
 
-    // Indexes for performance
-    await scholarshipCollection.createIndex({ scholarshipName: 1, universityName: 1, degree: 1 });
-    await applicationCollection.createIndex({ userEmail: 1, scholarshipId: 1 });
-    await reviewCollection.createIndex({ scholarshipId: 1, reviewerEmail: 1 });
 
-    // ২. এরপর ডাটাবেজ চেক রুট অ্যাড করুন
-    app.get('/db-check', async (req, res) => {
-      try {
-        await client.db().admin().ping();
-        res.send('MongoDB connected successfully to: ' + process.env.MONGODB_URI);
-      } catch (err) {
-        res.status(500).send('MongoDB connection failed: ' + err.message);
-      }
-    });
 
     // =====================
     // JWT ROUTES (Updated)
@@ -187,9 +176,6 @@ async function run() {
           .skip(skip)
           .limit(limit)
           .toArray();
-
-        // CORS হেডার ম্যানুয়ালি সেট করুন
-        res.setHeader('Access-Control-Allow-Origin', 'https://assignment-12-scholarhub.web.app');
         res.json({ total, page, totalPages: Math.ceil(total / limit), scholarships });
       } catch (error) {
         console.error('Error fetching scholarships:', error);
