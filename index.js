@@ -12,10 +12,12 @@ const stripe = Stripe(process.env.STRIPE_SECRET_KEY);
 // CORS Setup
 const corsOptions = {
   origin: [
+   'http://localhost:5173',
     'https://assignment-12-scholarhub.web.app',
     'https://assignment-12-scholarhub.firebaseapp.com',
+  
   ],
- 
+
 };
 app.use(cors(corsOptions));
 app.use(express.json());
@@ -250,14 +252,26 @@ async function run() {
       res.send(result);
     });
 
-    app.delete('/cancel-application/:id', verifyToken, async (req, res) => {
-      const result = await applicationCollection.deleteOne({
-        _id: new ObjectId(req.params.id),
-        userEmail: req.user.email,
-      });
-      if (result.deletedCount === 0) return res.status(404).send({ message: 'Not found or unauthorized' });
-      res.send(result);
+   app.delete('/delete-application/:id', verifyToken, async (req, res) => {
+  try {
+    const result = await applicationCollection.deleteOne({
+      _id: new ObjectId(req.params.id),
     });
+
+    if (result.deletedCount === 0) {
+      return res.status(404).send({ message: 'Application not found' });
+    }
+
+    res.send({ message: 'Application deleted successfully', result });
+  } catch (error) {
+    console.error(error);
+    res.status(500).send({ message: 'Server error' });
+  }
+});
+
+
+
+
 
     app.get('/all-applications', verifyToken, async (req, res) => {
       const { page, limit, sortBy = 'applicationDate', sortOrder = 'asc', deadline } = req.query;
