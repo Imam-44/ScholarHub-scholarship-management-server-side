@@ -13,11 +13,12 @@ const stripe = Stripe(process.env.STRIPE_SECRET_KEY);
 // CORS Setup
 app.use(cors({
   origin: [
-    // 'http://localhost:5173',
-    'https://assignment-12-scholarhub.web.app',
+    'http://localhost:5173', // dev
+    'https://assignment-12-scholarhub.web.app', // production
   ],
-  credentials: true,
+  credentials: true, // cookie পাঠানোর জন্য
 }));
+
 
 app.use(cookieParser());
 app.use(express.json());
@@ -70,19 +71,23 @@ async function run() {
         expiresIn: '1h'
       });
 
-      res
-        .cookie('access_token', token, {
-          httpOnly: true,                   // JS access নেই
-          secure: process.env.NODE_ENV === 'production', // HTTPS এ শুধু
-          sameSite: 'strict',               // CSRF প্রতিরোধ
-          maxAge: 60 * 60 * 1000,           // 1 ঘণ্টা
-        })
-        .send({ success: true });
+      res.cookie('access_token', token, {
+        httpOnly: true,
+        secure: true,      // Render + production সবসময় HTTPS
+        sameSite: 'none',  // cross-site (Firebase hosting থেকে call) হলে none
+        maxAge: 60 * 60 * 1000, // 1 ঘণ্টা
+      }).send({ success: true });
     });
 
+
     app.get('/logout', (req, res) => {
-      res.clearCookie('access_token').send({ success: true });
+      res.clearCookie('access_token', {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+      }).send({ success: true });
     });
+
 
 
     // -------------------------------
@@ -236,10 +241,14 @@ async function run() {
     });
 
     app.get('/my-applications/:email', verifyToken, async (req, res) => {
-      if (req.params.email !== req.user.email) return res.status(403).send({ message: 'Forbidden' });
-      const result = await applicationCollection.find({ userEmail: req.params.email }).toArray();
-      res.send(result);
+      if (req.user.email !== req.params.email) {
+        return res.status(403).send({ message: 'Forbidden' }); // অন্য user access
+      }
+
+      const applications = await applicationCollection.find({ userEmail: req.params.email }).toArray();
+      res.send(applications);
     });
+
 
     app.patch('/update-application/:id', verifyToken, async (req, res) => {
       const application = await applicationCollection.findOne({ _id: new ObjectId(req.params.id) });
