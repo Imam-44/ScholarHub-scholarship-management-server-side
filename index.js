@@ -3,6 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const jwt = require('jsonwebtoken');
+const cookieParser = require('cookie-parser');
 const Stripe = require('stripe');
 
 const app = express();
@@ -10,32 +11,29 @@ const port = process.env.PORT || 5000;
 const stripe = Stripe(process.env.STRIPE_SECRET_KEY);
 
 // CORS Setup
-const corsOptions = {
+app.use(cors({
   origin: [
-   'http://localhost:5173',
+    'http://localhost:5173',
     'https://assignment-12-scholarhub.web.app',
-    'https://assignment-12-scholarhub.firebaseapp.com',
-  
   ],
+  credentials: true,
+}));
 
-};
-app.use(cors(corsOptions));
+app.use(cookieParser());
 app.use(express.json());
 
 // JWT Middleware
 const verifyToken = (req, res, next) => {
-  const authHeader = req.headers.authorization;
-  if (!authHeader?.startsWith('Bearer ')) {
-    return res.status(401).send({ message: 'Unauthorized access' });
-  }
+  const token = req.cookies.access_token;
+  if (!token) return res.status(401).send({ message: 'Unauthorized' });
 
-  const token = authHeader.split(' ')[1];
   jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
-    if (err) return res.status(401).send({ message: 'Unauthorized access' });
+    if (err) return res.status(401).send({ message: 'Unauthorized' });
     req.user = decoded;
     next();
   });
 };
+
 
 // MongoDB Connection
 const client = new MongoClient(process.env.MONGODB_URI, {
@@ -65,18 +63,27 @@ async function run() {
     // JWT ROUTES
     // -------------------------------
     app.post('/jwt', async (req, res) => {
-      try {
-        const email = req.body;
-        const token = jwt.sign(email, process.env.ACCESS_TOKEN_SECRET, { expiresIn: '365d' });
-        res.send({ token });
-      } catch (error) {
-        res.status(500).send({ message: 'Server error', error: error.message });
-      }
+      const { email, role } = req.body;
+      if (!email) return res.status(400).send({ message: 'Email required' });
+
+      const token = jwt.sign({ email, role: role || 'user' }, process.env.ACCESS_TOKEN_SECRET, {
+        expiresIn: '1h'
+      });
+
+      res
+        .cookie('access_token', token, {
+          httpOnly: true,                   // JS access নেই
+          secure: process.env.NODE_ENV === 'production', // HTTPS এ শুধু
+          sameSite: 'strict',               // CSRF প্রতিরোধ
+          maxAge: 60 * 60 * 1000,           // 1 ঘণ্টা
+        })
+        .send({ success: true });
     });
 
-    app.get('/logout', async (req, res) => {
-      res.send({ success: true });
+    app.get('/logout', (req, res) => {
+      res.clearCookie('access_token').send({ success: true });
     });
+
 
     // -------------------------------
     // USER ROUTES
@@ -252,22 +259,22 @@ async function run() {
       res.send(result);
     });
 
-   app.delete('/delete-application/:id', verifyToken, async (req, res) => {
-  try {
-    const result = await applicationCollection.deleteOne({
-      _id: new ObjectId(req.params.id),
+    app.delete('/delete-application/:id', verifyToken, async (req, res) => {
+      try {
+        const result = await applicationCollection.deleteOne({
+          _id: new ObjectId(req.params.id),
+        });
+
+        if (result.deletedCount === 0) {
+          return res.status(404).send({ message: 'Application not found' });
+        }
+
+        res.send({ message: 'Application deleted successfully', result });
+      } catch (error) {
+        console.error(error);
+        res.status(500).send({ message: 'Server error' });
+      }
     });
-
-    if (result.deletedCount === 0) {
-      return res.status(404).send({ message: 'Application not found' });
-    }
-
-    res.send({ message: 'Application deleted successfully', result });
-  } catch (error) {
-    console.error(error);
-    res.status(500).send({ message: 'Server error' });
-  }
-});
 
 
 
