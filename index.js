@@ -13,7 +13,7 @@ const stripe = Stripe(process.env.STRIPE_SECRET_KEY);
 // CORS Setup
 app.use(cors({
   origin: [
-    'http://localhost:5173',
+    // 'http://localhost:5173',
     'https://assignment-12-scholarhub.web.app',
   ],
   credentials: true,
