@@ -13,10 +13,10 @@ const stripe = Stripe(process.env.STRIPE_SECRET_KEY);
 // CORS Setup
 app.use(cors({
   origin: [
-    'http://localhost:5173', // dev
-    'https://assignment-12-scholarhub.web.app', // production
+    'http://localhost:5173', 
+    'https://assignment-12-scholarhub.web.app', 
   ],
-  credentials: true, // cookie পাঠানোর জন্য
+  credentials: true, 
 }));
 
 
@@ -73,9 +73,9 @@ async function run() {
 
       res.cookie('access_token', token, {
         httpOnly: true,
-        secure: true,      // Render + production সবসময় HTTPS
-        sameSite: 'none',  // cross-site (Firebase hosting থেকে call) হলে none
-        maxAge: 60 * 60 * 1000, // 1 ঘণ্টা
+        secure: true,      
+        sameSite: 'none',  
+        maxAge: 60 * 60 * 1000, 
       }).send({ success: true });
     });
 
